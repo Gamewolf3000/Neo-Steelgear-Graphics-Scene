@@ -50,4 +50,7 @@ public:
 		const GraphicsPipelineData& graphicsPipelineData);
 
 	void SetPipelineState(ID3D12GraphicsCommandList* commandList);
+
+	void ChangeBackbufferDependent(unsigned int newWidth, 
+		unsigned int newHeight);
 };

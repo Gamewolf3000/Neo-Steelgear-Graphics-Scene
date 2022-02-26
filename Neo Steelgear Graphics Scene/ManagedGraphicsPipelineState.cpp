@@ -232,3 +232,10 @@ void ManagedGraphicsPipelineState::SetPipelineState(
 	commandList->RSSetScissorRects(1, &scissorRect);
 	commandList->SetPipelineState(pipelineState);
 }
+
+void ManagedGraphicsPipelineState::ChangeBackbufferDependent(
+	unsigned int newWidth, unsigned int newHeight)
+{
+	CreateViewport(newWidth, newHeight);
+	CreateScissorRect(newWidth, newHeight);
+}

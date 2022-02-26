@@ -21,7 +21,6 @@ class BaseScene : public FrameBased<Frames>
 {
 protected:
 	typedef std::uint32_t ComponentIndex;
-	std::uint8_t activeFrame = 0;
 	GraphicalComponentRegistry<ComponentIndex> registry;
 	ManagedResourceComponents<Frames> resourceComponents;
 
@@ -203,10 +202,11 @@ template<FrameType Frames>
 inline void BaseScene<Frames>::ChangeScreenSize(unsigned int backbufferWidth,
 	unsigned int backbufferHeight)
 {
-	(void)backbufferWidth;
-	(void)backbufferHeight;
+	screenWidth = backbufferWidth;
+	screenHeight = backbufferHeight;
 	FlushAllQueues();
-	//swapChain->ResizeBuffers(0, backbufferWidth, backbufferHeight,
-	//	DXGI_FORMAT_R8G8B8A8_UNORM, 
-	//	DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
+	swapChain.ResizeBackbuffers(backbufferWidth, backbufferHeight);
+
+	while (this->activeFrame != Frames - 1)
+		this->SwapFrame();
 }

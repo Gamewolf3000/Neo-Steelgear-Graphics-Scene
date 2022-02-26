@@ -19,22 +19,26 @@ template<FrameType Frames>
 class ManagedSwapChain : public FrameObject<SwapChainFrame, Frames>
 {
 private:
-	D3DPtr<IDXGISwapChain2> swapChain;
+	ID3D12Device* device;
+	D3DPtr<IDXGISwapChain3> swapChain;
 	D3DPtr<ID3D12DescriptorHeap> rtvHeap;
 	HANDLE backbufferWaitHandle = nullptr;
 	HWND windowHandle = nullptr;
 	unsigned int rtvSize = 0;
 
-	void CreateRTVs(ID3D12Device* device);
+	void CreateDescriptorHeap();
+	void CreateRTVs();
 
 public:
 	ManagedSwapChain() = default;
 	~ManagedSwapChain() = default;
 
-	void Initialize(ID3D12Device* device, ID3D12CommandQueue* queue,
+	void Initialize(ID3D12Device* deviceToUse, ID3D12CommandQueue* queue,
 		IDXGIFactory2* factory, HWND handleToWindow, bool fullscreen);
 
 	HANDLE GetWaitHandle();
+	void ResizeBackbuffers(unsigned int newWidth, unsigned int newHeight);
+	unsigned int GetCurrentBackbufferIndex();
 
 	D3D12_RESOURCE_BARRIER TransitionToPresent();
 	D3D12_RESOURCE_BARRIER TransitionToRenderTarget();
@@ -44,7 +48,7 @@ public:
 };
 
 template<FrameType Frames>
-inline void ManagedSwapChain<Frames>::CreateRTVs(ID3D12Device* device)
+inline void ManagedSwapChain<Frames>::CreateDescriptorHeap()
 {
 	D3D12_DESCRIPTOR_HEAP_DESC desc;
 	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -52,16 +56,21 @@ inline void ManagedSwapChain<Frames>::CreateRTVs(ID3D12Device* device)
 	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	desc.NodeMask = 0;
 	HRESULT hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&rtvHeap));
-	if(FAILED(hr))
+	if (FAILED(hr))
 		throw std::runtime_error("Could not create descriptor heap for backbuffers");
 
 	rtvSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+}
+
+template<FrameType Frames>
+inline void ManagedSwapChain<Frames>::CreateRTVs()
+{
 	auto rtvHandle = rtvHeap->GetCPUDescriptorHandleForHeapStart();
 
 	for (std::uint8_t i = 0; i < Frames; ++i)
 	{
 		D3DPtr<ID3D12Resource> currentBuffer;
-		hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&currentBuffer));
+		HRESULT hr = swapChain->GetBuffer(i, IID_PPV_ARGS(&currentBuffer));
 		if (FAILED(hr))
 			throw std::runtime_error("Could not fetch backbuffer");
 
@@ -73,10 +82,11 @@ inline void ManagedSwapChain<Frames>::CreateRTVs(ID3D12Device* device)
 }
 
 template<FrameType Frames>
-inline void ManagedSwapChain<Frames>::Initialize(ID3D12Device* device, 
+inline void ManagedSwapChain<Frames>::Initialize(ID3D12Device* deviceToUse,
 	ID3D12CommandQueue* queue, IDXGIFactory2* factory, HWND handleToWindow,
 	bool fullscreen)
 {
+	device = deviceToUse;
 	windowHandle = handleToWindow;
 
 	DXGI_SWAP_CHAIN_DESC1 desc;
@@ -105,10 +115,10 @@ inline void ManagedSwapChain<Frames>::Initialize(ID3D12Device* device,
 	if (FAILED(hr))
 		throw std::runtime_error("Could not create swap chain");
 
-	hr = temp->QueryInterface(__uuidof(IDXGISwapChain2),
+	hr = temp->QueryInterface(__uuidof(IDXGISwapChain3),
 		reinterpret_cast<void**>(&swapChain));
 	if (FAILED(hr))
-		throw std::runtime_error("Could not query swap chain 2");
+		throw std::runtime_error("Could not query swap chain 3");
 
 	hr = swapChain->SetMaximumFrameLatency(Frames);
 	if (FAILED(hr))
@@ -116,13 +126,34 @@ inline void ManagedSwapChain<Frames>::Initialize(ID3D12Device* device,
 
 	backbufferWaitHandle = swapChain->GetFrameLatencyWaitableObject();
 
-	CreateRTVs(device);
+	CreateDescriptorHeap();
+	CreateRTVs();
 }
 
 template<FrameType Frames>
 inline HANDLE ManagedSwapChain<Frames>::GetWaitHandle()
 {
 	return backbufferWaitHandle;
+}
+
+template<FrameType Frames>
+inline void ManagedSwapChain<Frames>::ResizeBackbuffers(unsigned int newWidth,
+	unsigned int newHeight)
+{
+	for (auto& swapChainFrame : this->frameObjects)
+		swapChainFrame.backbuffer = D3DPtr<ID3D12Resource>();
+
+	swapChain->ResizeBuffers(Frames, newWidth, newHeight, 
+		DXGI_FORMAT_R8G8B8A8_UNORM,
+		DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT);
+
+	CreateRTVs();
+}
+
+template<FrameType Frames>
+inline unsigned int ManagedSwapChain<Frames>::GetCurrentBackbufferIndex()
+{
+	return swapChain->GetCurrentBackBufferIndex();
 }
 
 template<FrameType Frames>
