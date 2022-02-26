@@ -74,3 +74,13 @@ void ManagedCommandAllocator::Reset()
 	currentList = 0;
 	firstUnexecuted = 0;
 }
+
+size_t ManagedCommandAllocator::GetNrOfStoredLists()
+{
+	return commandLists.size();
+}
+
+ID3D12GraphicsCommandList* ManagedCommandAllocator::GetStoredList(size_t index)
+{
+	return commandLists[index];
+}

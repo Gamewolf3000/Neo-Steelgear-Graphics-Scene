@@ -106,7 +106,7 @@ void ManagedGraphicsPipelineState::CreatePipelineState(
 	desc.BlendState.AlphaToCoverageEnable = false;
 	desc.BlendState.IndependentBlendEnable = false;
 
-	for (int i = 0; i < rtvFormats.size(); ++i)
+	for (unsigned int i = 0; i < rtvFormats.size(); ++i)
 	{
 		desc.RTVFormats[i] = rtvFormats[i];
 		desc.BlendState.RenderTarget[i] = CreateBlendDesc();
