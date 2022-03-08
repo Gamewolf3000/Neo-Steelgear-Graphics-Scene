@@ -27,33 +27,29 @@ ID3DBlob* ManagedGraphicsPipelineState::LoadCSO(const std::string& filepath)
 	return toReturn;
 }
 
+D3D12_ROOT_PARAMETER ManagedGraphicsPipelineState::CreateRootDescriptor(
+	const RootBufferBinding& binding)
+{
+	D3D12_ROOT_PARAMETER toReturn;
+	toReturn.ShaderVisibility = binding.shaderAssociation;
+	toReturn.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	toReturn.Descriptor.ShaderRegister = binding.registerNr;
+	toReturn.Descriptor.RegisterSpace = 0;
+	return toReturn;
+}
+
 void ManagedGraphicsPipelineState::CreateRootSignature(
+	std::vector<RootBufferBinding> rootBufferBindings,
 	const std::vector<D3D12_STATIC_SAMPLER_DESC>& staticSamplers)
 {
-	D3D12_ROOT_PARAMETER rootParameters[4];
-	rootParameters[0].ShaderVisibility = rootParameters[1].ShaderVisibility =
-		rootParameters[2].ShaderVisibility = rootParameters[3].ShaderVisibility =
-		D3D12_SHADER_VISIBILITY_ALL;
-
-	// 0: 64-bit index to indicate current entity or such
-	// 1: Per draw/dispatch buffer
-	// 2: Per pipeline buffer
-	// 3: Indices buffer
-	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
-	rootParameters[0].Constants.Num32BitValues = 2;
-	rootParameters[0].Constants.RegisterSpace = 0;
-	rootParameters[0].Constants.ShaderRegister = 0;
-
-	for (unsigned int i = 0; i < 3; ++i)
-	{
-		rootParameters[1 + i].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
-		rootParameters[1 + i].Descriptor.RegisterSpace = 0;
-		rootParameters[1 + i].Descriptor.ShaderRegister = 1 + i;
-	}
+	std::vector<D3D12_ROOT_PARAMETER> rootParameters;
+	rootParameters.reserve(rootBufferBindings.size());
+	for (auto& binding : rootBufferBindings)
+		rootParameters.push_back(CreateRootDescriptor(binding));
 
 	D3D12_ROOT_SIGNATURE_DESC desc;
-	desc.NumParameters = 4;
-	desc.pParameters = rootParameters;
+	desc.NumParameters = static_cast<unsigned int>(rootParameters.size());
+	desc.pParameters = rootParameters.size() != 0 ? &rootParameters[0] : nullptr;
 	desc.NumStaticSamplers = static_cast<UINT>(staticSamplers.size());
 	desc.pStaticSamplers = staticSamplers.size() > 0 ? &staticSamplers[0] : nullptr;
 	desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED;
@@ -63,12 +59,12 @@ void ManagedGraphicsPipelineState::CreateRootSignature(
 	HRESULT hr = D3D12SerializeRootSignature(&desc,
 		D3D_ROOT_SIGNATURE_VERSION_1_0, &serialized, &error);
 
-	std::string blobMessage;
-	if (hr != S_OK)
-		blobMessage = std::string(static_cast<char*>(error->GetBufferPointer()));
-
 	if (FAILED(hr))
+	{
+		std::string blobMessage = 
+			std::string(static_cast<char*>(error->GetBufferPointer()));
 		throw std::runtime_error("Could not serialize root signature: " + blobMessage);
+	}
 
 	hr = device->CreateRootSignature(0, serialized->GetBufferPointer(),
 		serialized->GetBufferSize(), IID_PPV_ARGS(&rootSignature));
@@ -214,7 +210,8 @@ void ManagedGraphicsPipelineState::Initialize(ID3D12Device* deviceToUse,
 	const GraphicsPipelineData& graphicsPipelineData)
 {
 	device = deviceToUse;
-	CreateRootSignature(graphicsPipelineData.staticSamplers);
+	CreateRootSignature(graphicsPipelineData.rootBufferBindings,
+		graphicsPipelineData.staticSamplers);
 	CreatePipelineState(graphicsPipelineData.shaderPaths, 
 		graphicsPipelineData.dsvFormat, graphicsPipelineData.rtvFormats);
 	CreateViewport(graphicsPipelineData.rendertargetWidth,

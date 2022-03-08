@@ -39,6 +39,9 @@
     <ClInclude Include="ManagedSwapChain.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="ComponentDescriptorHeap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="ManagedCommandAllocator.cpp">

@@ -27,4 +27,7 @@ public:
 	void FinishActiveList(bool prepareNewList = false);
 	void ExecuteCommands(ID3D12CommandQueue* queue);
 	void Reset();
+
+	size_t GetNrOfStoredLists();
+	ID3D12GraphicsCommandList* GetStoredList(size_t index);
 };

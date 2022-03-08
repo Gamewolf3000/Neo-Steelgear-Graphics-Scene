@@ -156,6 +156,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="BaseScene.h" />
+    <ClInclude Include="ComponentDescriptorHeap.h" />
     <ClInclude Include="DirectAccessComponentBinder.h" />
     <ClInclude Include="GraphicalComponentRegistry.h" />
     <ClInclude Include="ManagedCommandAllocator.h" />
