@@ -27,6 +27,8 @@ private:
 	unsigned int descriptorSize = 0;
 
 	void CreateDescriptorHeaps();
+	void StoreDescriptors(D3D12_CPU_DESCRIPTOR_HANDLE sourceHandle,
+		UINT nrOfComponents);
 
 public:
 	ComponentDescriptorHeap() = default;
@@ -43,7 +45,8 @@ public:
 	void Initialize(ID3D12Device* deviceToUse, 
 		size_t maxDescriptorsPerFrame);
 
-	size_t AddComponentDescriptors(const ResourceComponent& component);
+	void AddComponentDescriptors(const IdentifierType& identifier,
+		const ResourceComponent& component);
 	size_t GetComponentHeapOffset(const IdentifierType& identifier,
 		ViewType viewType);
 
@@ -58,13 +61,25 @@ inline void ComponentDescriptorHeap<Frames, IdentifierType>::CreateDescriptorHea
 {
 	D3D12_DESCRIPTOR_HEAP_DESC desc;
 	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc.NumDescriptors = descriptorsPerFrame * Frames;
+	desc.NumDescriptors = descriptorsPerFrame;
 	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 	desc.NodeMask = 0;
 	device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&cpuHeap));
 
 	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	desc.NumDescriptors = descriptorsPerFrame * Frames;
 	device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&gpuHeap));
+}
+
+template<FrameType Frames, typename IdentifierType>
+inline void ComponentDescriptorHeap<Frames, IdentifierType>::StoreDescriptors(
+	D3D12_CPU_DESCRIPTOR_HANDLE sourceHandle, UINT nrOfComponents)
+{
+	auto destinationHandle = cpuHeap->GetCPUDescriptorHandleForHeapStart();
+	destinationHandle.ptr += currentOffset * descriptorSize;
+	device->CopyDescriptorsSimple(nrOfComponents, destinationHandle,
+		sourceHandle, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	currentOffset += nrOfComponents;
 }
 
 template<FrameType Frames, typename IdentifierType>
@@ -79,14 +94,37 @@ inline void ComponentDescriptorHeap<Frames, IdentifierType>::Initialize(
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline size_t ComponentDescriptorHeap<Frames, IdentifierType>::AddComponentDescriptors(const ResourceComponent& component)
+inline void 
+ComponentDescriptorHeap<Frames, IdentifierType>::AddComponentDescriptors(
+	const IdentifierType& identifier, const ResourceComponent& component)
 {
-	component.
-	return size_t();
+	ComponentOffset toStore;
+	UINT nrOfComponents = static_cast<UINT>(component.NrOfDescriptors());
+
+	if (component.HasDescriptorsOfType(ViewType::CBV))
+	{
+		toStore.cbvOffset = currentOffset;
+		StoreDescriptors(component.GetDescriptorHeapCBV(), nrOfComponents);
+	}
+
+	if (component.HasDescriptorsOfType(ViewType::SRV))
+	{
+		toStore.srvOffset = currentOffset;
+		StoreDescriptors(component.GetDescriptorHeapSRV(), nrOfComponents);
+	}
+
+	if (component.HasDescriptorsOfType(ViewType::UAV))
+	{
+		toStore.uavOffset = currentOffset;
+		StoreDescriptors(component.GetDescriptorHeapUAV(), nrOfComponents);
+	}
+
+	componentOffsets[identifier] = toStore;
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline size_t ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
+inline size_t 
+ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
 	const IdentifierType& identifier, ViewType viewType)
 {
 	auto& offsets = componentOffsets[identifier];
@@ -105,10 +143,10 @@ inline size_t ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapO
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline void ComponentDescriptorHeap<Frames, IdentifierType>::UploadCurrentFrameHeap()
+inline void 
+ComponentDescriptorHeap<Frames, IdentifierType>::UploadCurrentFrameHeap()
 {
 	auto destination = gpuHeap->GetCPUDescriptorHandleForHeapStart();
-	destination.ptr += activeFrame * descriptorsPerFrame * descriptorSize;
 	auto source = cpuHeap->GetCPUDescriptorHandleForHeapStart();
 	source.ptr += activeFrame * descriptorsPerFrame * descriptorSize;
 	device->CopyDescriptorsSimple(descriptorsPerFrame, destination, source,
@@ -116,7 +154,8 @@ inline void ComponentDescriptorHeap<Frames, IdentifierType>::UploadCurrentFrameH
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline ID3D12DescriptorHeap* ComponentDescriptorHeap<Frames, IdentifierType>::GetShaderVisibleHeap()
+inline ID3D12DescriptorHeap* 
+ComponentDescriptorHeap<Frames, IdentifierType>::GetShaderVisibleHeap()
 {
 	return gpuHeap;
 }
