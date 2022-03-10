@@ -22,7 +22,7 @@ private:
 	ID3D12Device* device;
 	ID3D12DescriptorHeap* cpuHeap = nullptr;
 	ID3D12DescriptorHeap* gpuHeap = nullptr;
-	size_t descriptorsPerFrame = 0;
+	unsigned int descriptorsPerFrame = 0;
 	size_t currentOffset = 0;
 	unsigned int descriptorSize = 0;
 
@@ -43,7 +43,7 @@ public:
 		ComponentDescriptorHeap&& other);
 
 	void Initialize(ID3D12Device* deviceToUse, 
-		size_t maxDescriptorsPerFrame);
+		unsigned int maxDescriptorsPerFrame);
 
 	void AddComponentDescriptors(const IdentifierType& identifier,
 		const ResourceComponent& component);
@@ -84,7 +84,7 @@ inline void ComponentDescriptorHeap<Frames, IdentifierType>::StoreDescriptors(
 
 template<FrameType Frames, typename IdentifierType>
 inline void ComponentDescriptorHeap<Frames, IdentifierType>::Initialize(
-	ID3D12Device* deviceToUse, size_t maxDescriptorsPerFrame)
+	ID3D12Device* deviceToUse, unsigned int maxDescriptorsPerFrame)
 {
 	device = deviceToUse;
 	descriptorsPerFrame = maxDescriptorsPerFrame;
@@ -129,7 +129,7 @@ ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
 {
 	auto& offsets = componentOffsets[identifier];
 
-	switch (switch_on)
+	switch (viewType)
 	{
 	case ViewType::CBV:
 		return offsets.cbvOffset;
@@ -138,7 +138,7 @@ ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
 	case ViewType::UAV:
 		return offsets.uavOffset;
 	default:
-		throw std::runtime_error("Attempting to get heap offset of incorrect type")
+		throw std::runtime_error("Attempting to get heap offset of incorrect type");
 	}
 }
 
@@ -148,7 +148,7 @@ ComponentDescriptorHeap<Frames, IdentifierType>::UploadCurrentFrameHeap()
 {
 	auto destination = gpuHeap->GetCPUDescriptorHandleForHeapStart();
 	auto source = cpuHeap->GetCPUDescriptorHandleForHeapStart();
-	source.ptr += activeFrame * descriptorsPerFrame * descriptorSize;
+	source.ptr += this->activeFrame * descriptorsPerFrame * descriptorSize;
 	device->CopyDescriptorsSimple(descriptorsPerFrame, destination, source,
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
@@ -158,4 +158,11 @@ inline ID3D12DescriptorHeap*
 ComponentDescriptorHeap<Frames, IdentifierType>::GetShaderVisibleHeap()
 {
 	return gpuHeap;
+}
+
+template<FrameType Frames, typename IdentifierType>
+inline void ComponentDescriptorHeap<Frames, IdentifierType>::SwapFrame()
+{
+	FrameBased<Frames>::SwapFrame();
+	currentOffset = 0;
 }

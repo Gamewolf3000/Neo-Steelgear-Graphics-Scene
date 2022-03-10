@@ -7,6 +7,7 @@
 #include "FrameBufferComponent.h"
 #include "FrameTexture2DComponent.h"
 #include "DirectAccessComponentBinder.h"
+#include "ComponentDescriptorHeap.h"
 #include "D3DPtr.h"
 
 typedef unsigned int ComponentIndex;
@@ -21,12 +22,17 @@ enum class ComponentType
 
 struct ComponentIdentifier
 {
-	ComponentIndex globalIndex;
+	//ComponentIndex globalIndex;
 	ComponentType type;
 	size_t localIndex = 0;
 	bool dynamicComponent = true;
 
-	operator ComponentIndex() const { return globalIndex; }
+	//operator ComponentIndex() const { return globalIndex; }
+	bool operator==(const ComponentIdentifier& other) const
+	{
+		return this->type == other.type && this->localIndex == other.localIndex &&
+			this->dynamicComponent == other.dynamicComponent;
+	}
 };
 
 template<FrameType Frames>
@@ -39,18 +45,19 @@ private:
 	unsigned int descriptorsPerFrame = 0;
 
 	ID3D12Device* device = nullptr;
-	D3DPtr<ID3D12DescriptorHeap> shaderVisibleHeap;
+	//D3DPtr<ID3D12DescriptorHeap> shaderVisibleHeap;
 
-	std::vector<ResourceComponent*> allComponents;
+	//std::vector<ResourceComponent*> allComponents;
 	std::vector<FrameBufferComponent<Frames>> dynamicBufferComponents;
 	std::vector<FrameBufferComponent<1>> staticBufferComponents;
 	std::vector<FrameTexture2DComponent<Frames>> dynamicTexture2DComponents;
 	std::vector<FrameTexture2DComponent<1>> staticTexture2DComponents;
 
-	std::vector<typename DirectAccessComponentBinder<ComponentIndex,
-		Frames>::ComponentToBind> bindings;
-	std::vector<ComponentIdentifier> componentIdentifiers;
-	DirectAccessComponentBinder<ComponentIndex, Frames> componentBinder;
+	//std::vector<typename DirectAccessComponentBinder<ComponentIndex,
+	//	Frames>::ComponentToBind> bindings;
+	//std::vector<ComponentIdentifier> componentIdentifiers;
+	//DirectAccessComponentBinder<ComponentIndex, Frames> componentBinder;
+	ComponentDescriptorHeap<Frames, ComponentIdentifier> componentDescriptorHeap;
 
 	ResourceUploader uploaders[Frames];
 
@@ -72,11 +79,11 @@ private:
 	std::vector<DescriptorAllocationInfo<ViewDescType>> CreateDefaultDAIVector(
 		bool cbv, bool srv, bool uav, bool rtv, bool dsv, size_t maxNrOfDescriptors);
 
-	void AddComponentToBindings(ComponentIndex componentIndex,
-		unsigned int maxElements, ViewType viewType);
+	//void AddComponentToBindings(ComponentIndex componentIndex,
+	//	unsigned int maxElements, ViewType viewType);
 
-	void AddComponentBindings(ComponentIndex componentIndex,
-		unsigned int maxElements, bool cbv, bool srv, bool uav);
+	//void AddComponentBindings(ComponentIndex componentIndex,
+	//	unsigned int maxElements, bool cbv, bool srv, bool uav);
 
 	void InitialiseResourceUploaders(size_t minSizePerUploader,
 		AllocationStrategy allocationStrategy);
@@ -95,17 +102,17 @@ public:
 		bool srv, bool uav);
 
 	template<typename Element>
-	ComponentIdentifier CreateBufferComponent(bool dynamic, 
+	ComponentIdentifier CreateBufferComponent(bool dynamic,
 		unsigned int maxElements, UpdateType componentUpdateType,
 		std::optional<BufferViewDesc> cbv, std::optional<BufferViewDesc> srv,
 		std::optional<BufferViewDesc> uav);
 
-	ComponentIdentifier CreateTexture2DComponent(bool dynamic, 
+	ComponentIdentifier CreateTexture2DComponent(bool dynamic,
 		size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize,
 		DXGI_FORMAT texelFormat, UpdateType componentUpdateType,
 		bool srv, bool uav = false, bool rtv = false, bool dsv = false);
 
-	ComponentIdentifier CreateTexture2DComponent(bool dynamic, 
+	ComponentIdentifier CreateTexture2DComponent(bool dynamic,
 		size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize,
 		DXGI_FORMAT texelFormat, UpdateType componentUpdateType,
 		std::optional<Texture2DViewDesc> srv, std::optional<Texture2DViewDesc> uav,
@@ -122,15 +129,17 @@ public:
 
 	void UpdateComponents(ID3D12GraphicsCommandList* commandList);
 	void BindComponents(ID3D12GraphicsCommandList* commandList);
-	void BindComponentIndexBuffer(ID3D12GraphicsCommandList* commandList,
-		unsigned int rootParameterIndex);
+	size_t GetComponentDescriptorStart(const ComponentIdentifier& identifier,
+		ViewType viewType);
+	//void BindComponentIndexBuffer(ID3D12GraphicsCommandList* commandList,
+	//	unsigned int rootParameterIndex);
 
 	void SwapFrame() override;
 };
 
 template<FrameType Frames>
 template<typename ViewDescType>
-inline DescriptorAllocationInfo<ViewDescType> 
+inline DescriptorAllocationInfo<ViewDescType>
 ManagedResourceComponents<Frames>::CreateCustomDAI(ViewType viewType,
 	size_t nrOfDescriptors, ViewDescType viewDesc)
 {
@@ -160,7 +169,7 @@ ManagedResourceComponents<Frames>::CreateCustomDAI(ViewType viewType,
 
 template<FrameType Frames>
 template<typename ViewDescType>
-inline std::vector<DescriptorAllocationInfo<ViewDescType>> 
+inline std::vector<DescriptorAllocationInfo<ViewDescType>>
 ManagedResourceComponents<Frames>::CreateCustomDAIVector(
 	std::optional<ViewDescType> cbv, std::optional<ViewDescType> srv,
 	std::optional<ViewDescType> uav, std::optional<ViewDescType> rtv,
@@ -199,7 +208,7 @@ ManagedResourceComponents<Frames>::CreateCustomDAIVector(
 
 template<FrameType Frames>
 template<typename ViewDescType>
-inline DescriptorAllocationInfo<ViewDescType> 
+inline DescriptorAllocationInfo<ViewDescType>
 ManagedResourceComponents<Frames>::CreateDefaultDAI(ViewType viewType,
 	size_t nrOfDescriptors)
 {
@@ -229,7 +238,7 @@ ManagedResourceComponents<Frames>::CreateDefaultDAI(ViewType viewType,
 
 template<FrameType Frames>
 template<typename ViewDescType>
-inline std::vector<DescriptorAllocationInfo<ViewDescType>> 
+inline std::vector<DescriptorAllocationInfo<ViewDescType>>
 ManagedResourceComponents<Frames>::CreateDefaultDAIVector(bool cbv, bool srv,
 	bool uav, bool rtv, bool dsv, size_t maxNrOfDescriptors)
 {
@@ -266,8 +275,8 @@ ManagedResourceComponents<Frames>::CreateDefaultDAIVector(bool cbv, bool srv,
 
 template<FrameType Frames>
 template<typename Element>
-inline ComponentIdentifier 
-ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic, 
+inline ComponentIdentifier
+ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 	unsigned int maxElements, UpdateType componentUpdateType, bool cbv,
 	bool srv, bool uav)
 {
@@ -282,34 +291,35 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 		CreateDefaultDAIVector<BufferViewDesc>(cbv, srv, uav, false, false,
 			maxElements);
 
-	ComponentIndex index;
+	ComponentIdentifier toReturn;
 	if (dynamic)
 	{
 		dynamicBufferComponents.push_back(FrameBufferComponent<Frames>());
 		dynamicBufferComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::BUFFER,
-			dynamicBufferComponents.size() - 1, true });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::BUFFER,
+			dynamicBufferComponents.size() - 1, true };
 	}
 	else
 	{
 		staticBufferComponents.push_back(FrameBufferComponent<1>());
 		staticBufferComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::BUFFER,
-			staticBufferComponents.size() - 1, false });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::BUFFER,
+			staticBufferComponents.size() - 1, false };
 	}
 
-	AddComponentBindings(index, maxElements, cbv, srv, uav);
+	descriptorsPerFrame += maxElements * descriptorInfo.size();
+	//AddComponentBindings(index, maxElements, cbv, srv, uav);
 
-	return componentIdentifiers.back();
+	return toReturn;
 }
 
 template<FrameType Frames>
 template<typename Element>
-inline ComponentIdentifier 
+inline ComponentIdentifier
 ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 	unsigned int maxElements, UpdateType componentUpdateType,
 	std::optional<BufferViewDesc> cbv, std::optional<BufferViewDesc> srv,
@@ -326,63 +336,64 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 		CreateCustomDAIVector<BufferViewDesc>(cbv, srv, uav, std::nullopt,
 			std::nullopt, maxElements);
 
-	ComponentIndex index;
+	ComponentIdentifier toReturn;
 	if (dynamic)
 	{
 		dynamicBufferComponents.push_back(FrameBufferComponent<Frames>());
 		dynamicBufferComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::BUFFER,
-			dynamicBufferComponents.size() - 1, true });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::BUFFER,
+			dynamicBufferComponents.size() - 1, true };
 	}
 	else
 	{
 		staticBufferComponents.push_back(FrameBufferComponent<1>());
 		staticBufferComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::BUFFER,
-			staticBufferComponents.size() - 1, false });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::BUFFER,
+			staticBufferComponents.size() - 1, false };
 	}
 
-	AddComponentBindings(index, maxElements, cbv.has_value(), srv.has_value(),
-		uav.has_value());
+	descriptorsPerFrame += maxElements * descriptorInfo.size();
+	//AddComponentBindings(index, maxElements, cbv.has_value(), srv.has_value(),
+	//	uav.has_value());
 
-	return componentIdentifiers.back();
+	return toReturn;
 }
 
-template<FrameType Frames>
-inline void ManagedResourceComponents<Frames>::AddComponentToBindings(
-	ComponentIndex componentIndex, unsigned int maxElements, ViewType viewType)
-{
-	typename DirectAccessComponentBinder<ComponentIndex, 
-		Frames>::ComponentToBind componentToBind;
-	componentToBind.index = componentIndex;
-	componentToBind.maxComponents = maxElements;
-	componentToBind.viewType = viewType;
-	bindings.push_back(componentToBind);
-	descriptorsPerFrame += maxElements;
-}
-
-template<FrameType Frames>
-inline void ManagedResourceComponents<Frames>::AddComponentBindings(
-	ComponentIndex componentIndex, unsigned int maxElements, bool cbv,
-	bool srv, bool uav)
-{
-	if (cbv)
-		AddComponentToBindings(componentIndex, maxElements, ViewType::CBV);
-	if (srv)
-		AddComponentToBindings(componentIndex, maxElements, ViewType::SRV);
-	if (uav)
-		AddComponentToBindings(componentIndex, maxElements, ViewType::UAV);
-}
+//template<FrameType Frames>
+//inline void ManagedResourceComponents<Frames>::AddComponentToBindings(
+//	ComponentIndex componentIndex, unsigned int maxElements, ViewType viewType)
+//{
+//	typename DirectAccessComponentBinder<ComponentIndex, 
+//		Frames>::ComponentToBind componentToBind;
+//	componentToBind.index = componentIndex;
+//	componentToBind.maxComponents = maxElements;
+//	componentToBind.viewType = viewType;
+//	bindings.push_back(componentToBind);
+//	descriptorsPerFrame += maxElements;
+//}
+//
+//template<FrameType Frames>
+//inline void ManagedResourceComponents<Frames>::AddComponentBindings(
+//	ComponentIndex componentIndex, unsigned int maxElements, bool cbv,
+//	bool srv, bool uav)
+//{
+//	if (cbv)
+//		AddComponentToBindings(componentIndex, maxElements, ViewType::CBV);
+//	if (srv)
+//		AddComponentToBindings(componentIndex, maxElements, ViewType::SRV);
+//	if (uav)
+//		AddComponentToBindings(componentIndex, maxElements, ViewType::UAV);
+//}
 
 template<FrameType Frames>
 inline void ManagedResourceComponents<Frames>::InitialiseResourceUploaders(
 	size_t minSizePerUploader, AllocationStrategy allocationStrategy)
 {
-	size_t sizePerUploader = 65536 * 
+	size_t sizePerUploader = 65536 *
 		static_cast<size_t>(std::ceil((1.0 * minSizePerUploader) / 65536));
 
 	for (FrameType i = 0; i < Frames; ++i)
@@ -390,8 +401,8 @@ inline void ManagedResourceComponents<Frames>::InitialiseResourceUploaders(
 }
 
 template<FrameType Frames>
-inline void 
-ManagedResourceComponents<Frames>::Initialize(ID3D12Device* deviceToUse, 
+inline void
+ManagedResourceComponents<Frames>::Initialize(ID3D12Device* deviceToUse,
 	size_t minSizePerUploader, AllocationStrategy allocationStrategy)
 {
 	device = deviceToUse;
@@ -407,51 +418,52 @@ ManagedResourceComponents<Frames>::Initialize(ID3D12Device* deviceToUse,
 template<FrameType Frames>
 inline void ManagedResourceComponents<Frames>::FinalizeComponents()
 {
-	allComponents.reserve(componentIdentifiers.size());
-	for (auto& identifier : componentIdentifiers)
-	{
-		ResourceComponent* toAdd = nullptr;
-		if (identifier.type == ComponentType::BUFFER &&
-			identifier.dynamicComponent == true)
-		{
-			toAdd = &dynamicBufferComponents[identifier.localIndex];
-		}
-		else if (identifier.type == ComponentType::BUFFER &&
-			identifier.dynamicComponent == false)
-		{
-			toAdd = &staticBufferComponents[identifier.localIndex];
-		}
-		else if (identifier.type == ComponentType::TEXTURE2D &&
-			identifier.dynamicComponent == true)
-		{
-			toAdd = &dynamicTexture2DComponents[identifier.localIndex];
-		}
-		else if (identifier.type == ComponentType::TEXTURE2D &&
-			identifier.dynamicComponent == false)
-		{
-			toAdd = &staticTexture2DComponents[identifier.localIndex];
-		}
+	componentDescriptorHeap.Initialize(device, descriptorsPerFrame);
+	//allComponents.reserve(componentIdentifiers.size());
+	//for (auto& identifier : componentIdentifiers)
+	//{
+	//	ResourceComponent* toAdd = nullptr;
+	//	if (identifier.type == ComponentType::BUFFER &&
+	//		identifier.dynamicComponent == true)
+	//	{
+	//		toAdd = &dynamicBufferComponents[identifier.localIndex];
+	//	}
+	//	else if (identifier.type == ComponentType::BUFFER &&
+	//		identifier.dynamicComponent == false)
+	//	{
+	//		toAdd = &staticBufferComponents[identifier.localIndex];
+	//	}
+	//	else if (identifier.type == ComponentType::TEXTURE2D &&
+	//		identifier.dynamicComponent == true)
+	//	{
+	//		toAdd = &dynamicTexture2DComponents[identifier.localIndex];
+	//	}
+	//	else if (identifier.type == ComponentType::TEXTURE2D &&
+	//		identifier.dynamicComponent == false)
+	//	{
+	//		toAdd = &staticTexture2DComponents[identifier.localIndex];
+	//	}
 
-		allComponents.push_back(toAdd);
-	}
+	//	allComponents.push_back(toAdd);
+	//}
 
-	componentBinder.Initialize(device, shaderViewSize, bindings);
+	//componentBinder.Initialize(device, shaderViewSize, bindings);
 
-	D3D12_DESCRIPTOR_HEAP_DESC desc;
-	desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-	desc.NumDescriptors = descriptorsPerFrame * Frames;
-	desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
-	desc.NodeMask = 0;
-	HRESULT hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&shaderVisibleHeap));
-	
-	if (FAILED(hr))
-		throw std::runtime_error("Could not create shader visible heap");
+	//D3D12_DESCRIPTOR_HEAP_DESC desc;
+	//desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
+	//desc.NumDescriptors = descriptorsPerFrame * Frames;
+	//desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+	//desc.NodeMask = 0;
+	//HRESULT hr = device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&shaderVisibleHeap));
+	//
+	//if (FAILED(hr))
+	//	throw std::runtime_error("Could not create shader visible heap");
 }
 
 template<FrameType Frames>
 inline ComponentIdentifier
 ManagedResourceComponents<Frames>::CreateTexture2DComponent(bool dynamic,
-	size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize, 
+	size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize,
 	DXGI_FORMAT texelFormat, UpdateType componentUpdateType,
 	bool srv, bool uav, bool rtv, bool dsv)
 {
@@ -459,40 +471,42 @@ ManagedResourceComponents<Frames>::CreateTexture2DComponent(bool dynamic,
 	textureInfo.format = texelFormat;
 	textureInfo.texelSize = texelSize;
 	ResourceHeapInfo heapInfo(totalBytes);
-	TextureComponentInfo componentInfo(texelFormat, texelSize, 
+	TextureComponentInfo componentInfo(texelFormat, texelSize,
 		componentUpdateType == UpdateType::MAP_UPDATE, heapInfo);
 
 	std::vector<DescriptorAllocationInfo<Texture2DViewDesc>> descriptorInfo =
 		CreateDefaultDAIVector<Texture2DViewDesc>(false, srv, uav, rtv, dsv,
 			maxNrOfTextures);
 
-	ComponentIndex index;
+	ComponentIdentifier toReturn;
 	if (dynamic)
 	{
 		dynamicTexture2DComponents.push_back(FrameTexture2DComponent<Frames>());
 		dynamicTexture2DComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::TEXTURE2D,
-			dynamicTexture2DComponents.size() - 1, true });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::TEXTURE2D,
+			dynamicTexture2DComponents.size() - 1, true };
 	}
 	else
 	{
 		staticTexture2DComponents.push_back(FrameTexture2DComponent<1>());
 		staticTexture2DComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::TEXTURE2D,
-			staticTexture2DComponents.size() - 1, false });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::TEXTURE2D,
+			staticTexture2DComponents.size() - 1, false };
 	}
 
-	AddComponentBindings(index, maxNrOfTextures, false, srv, uav);
-	
-	return componentIdentifiers.back();
+	descriptorsPerFrame += maxNrOfTextures *
+		static_cast<unsigned int>(descriptorInfo.size());
+	//AddComponentBindings(index, maxNrOfTextures, false, srv, uav);
+
+	return toReturn;
 }
 
 template<FrameType Frames>
-inline ComponentIdentifier 
+inline ComponentIdentifier
 ManagedResourceComponents<Frames>::CreateTexture2DComponent(bool dynamic,
 	size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize,
 	DXGI_FORMAT texelFormat, UpdateType componentUpdateType,
@@ -510,34 +524,36 @@ ManagedResourceComponents<Frames>::CreateTexture2DComponent(bool dynamic,
 		CreateCustomDAIVector<Texture2DViewDesc>(std::nullopt, srv, uav, rtv,
 			dsv, maxNrOfTextures);
 
-	ComponentIndex index;
+	ComponentIdentifier toReturn;
 	if (dynamic)
 	{
 		dynamicTexture2DComponents.push_back(FrameTexture2DComponent<Frames>());
 		dynamicTexture2DComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::TEXTURE2D,
-			dynamicTexture2DComponents.size() - 1, true });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::TEXTURE2D,
+			dynamicTexture2DComponents.size() - 1, true };
 	}
 	else
 	{
 		staticTexture2DComponents.push_back(FrameTexture2DComponent<1>());
 		staticTexture2DComponents.back().Initialize(device, componentUpdateType,
 			componentInfo, descriptorInfo);
-		index = static_cast<ComponentIndex>(componentIdentifiers.size());
-		componentIdentifiers.push_back({ index, ComponentType::TEXTURE2D,
-			staticTexture2DComponents.size() - 1, false });
+		//index = static_cast<ComponentIndex>(componentIdentifiers.size());
+		toReturn = { ComponentType::TEXTURE2D,
+			staticTexture2DComponents.size() - 1, false };
 	}
 
-	AddComponentBindings(index, maxNrOfTextures, false, srv.has_value(),
-		uav.has_value());
+	descriptorsPerFrame += maxNrOfTextures *
+		static_cast<unsigned int>(descriptorInfo.size());
+	//AddComponentBindings(index, maxNrOfTextures, false, srv.has_value(),
+	//	uav.has_value());
 
-	return componentIdentifiers.back();
+	return toReturn;
 }
 
 template<FrameType Frames>
-inline FrameBufferComponent<Frames>& 
+inline FrameBufferComponent<Frames>&
 ManagedResourceComponents<Frames>::GetDynamicBufferComponent(
 	const ComponentIdentifier& componentIdentifier)
 {
@@ -545,7 +561,7 @@ ManagedResourceComponents<Frames>::GetDynamicBufferComponent(
 }
 
 template<FrameType Frames>
-inline FrameBufferComponent<1>& 
+inline FrameBufferComponent<1>&
 ManagedResourceComponents<Frames>::GetStaticBufferComponent(
 	const ComponentIdentifier& componentIdentifier)
 {
@@ -554,7 +570,7 @@ ManagedResourceComponents<Frames>::GetStaticBufferComponent(
 }
 
 template<FrameType Frames>
-inline FrameTexture2DComponent<Frames>& 
+inline FrameTexture2DComponent<Frames>&
 ManagedResourceComponents<Frames>::GetDynamicTexture2DComponent(
 	const ComponentIdentifier& componentIdentifier)
 {
@@ -562,7 +578,7 @@ ManagedResourceComponents<Frames>::GetDynamicTexture2DComponent(
 }
 
 template<FrameType Frames>
-inline FrameTexture2DComponent<1>& 
+inline FrameTexture2DComponent<1>&
 ManagedResourceComponents<Frames>::GetStaticTexture2DComponent(
 	const ComponentIdentifier& componentIdentifier)
 {
@@ -573,7 +589,7 @@ template<FrameType Frames>
 inline void ManagedResourceComponents<Frames>::UpdateComponents(
 	ID3D12GraphicsCommandList* commandList)
 {
-	std::vector<D3D12_RESOURCE_BARRIER> barriers;
+	static std::vector<D3D12_RESOURCE_BARRIER> barriers;
 
 	for (auto& bufferComponent : dynamicBufferComponents)
 		bufferComponent.PrepareResourcesForUpdates(barriers);
@@ -611,19 +627,63 @@ template<FrameType Frames>
 inline void ManagedResourceComponents<Frames>::BindComponents(
 	ID3D12GraphicsCommandList* commandList)
 {
-	componentBinder.BindComponents(&uploaders[this->activeFrame], commandList,
-		shaderVisibleHeap, this->activeFrame * descriptorsPerFrame * shaderViewSize,
-		allComponents);
-	commandList->SetDescriptorHeaps(1, &shaderVisibleHeap);
+	ComponentIdentifier identifier;
+	identifier.type = ComponentType::BUFFER;
+	identifier.dynamicComponent = true;
+	for (size_t i = 0; i < dynamicBufferComponents.size(); ++i)
+	{
+		identifier.localIndex = i;
+		componentDescriptorHeap.AddComponentDescriptors(identifier,
+			dynamicBufferComponents[i]);
+	}
+
+	identifier.dynamicComponent = false;
+	for (size_t i = 0; i < staticBufferComponents.size(); ++i)
+	{
+		identifier.localIndex = i;
+		componentDescriptorHeap.AddComponentDescriptors(identifier,
+			staticBufferComponents[i]);
+	}
+
+	identifier.type = ComponentType::TEXTURE2D;
+	identifier.dynamicComponent = true;
+	for (size_t i = 0; i < dynamicTexture2DComponents.size(); ++i)
+	{
+		identifier.localIndex = i;
+		componentDescriptorHeap.AddComponentDescriptors(identifier,
+			dynamicTexture2DComponents[i]);
+	}
+
+	identifier.dynamicComponent = false;
+	for (size_t i = 0; i < staticTexture2DComponents.size(); ++i)
+	{
+		identifier.localIndex = i;
+		componentDescriptorHeap.AddComponentDescriptors(identifier,
+			staticTexture2DComponents[i]);
+	}
+
+	commandList->SetDescriptorHeaps(1,
+		componentDescriptorHeap.GetShaderVisibleHeap());
+	//componentBinder.BindComponents(&uploaders[this->activeFrame], commandList,
+	//	shaderVisibleHeap, this->activeFrame * descriptorsPerFrame * shaderViewSize,
+	//	allComponents);
+	//commandList->SetDescriptorHeaps(1, &shaderVisibleHeap);
 }
 
 template<FrameType Frames>
-inline void ManagedResourceComponents<Frames>::BindComponentIndexBuffer(
-	ID3D12GraphicsCommandList* commandList, unsigned int rootParameterIndex)
+inline size_t ManagedResourceComponents<Frames>::GetComponentDescriptorStart(
+	const ComponentIdentifier& identifier, ViewType viewType)
 {
-	commandList->SetGraphicsRootConstantBufferView(rootParameterIndex,
-		componentBinder.GetBufferAdress());
+	return componentDescriptorHeap.GetComponentHeapOffset(identifier, viewType);
 }
+
+//template<FrameType Frames>
+//inline void ManagedResourceComponents<Frames>::BindComponentIndexBuffer(
+//	ID3D12GraphicsCommandList* commandList, unsigned int rootParameterIndex)
+//{
+//	commandList->SetGraphicsRootConstantBufferView(rootParameterIndex,
+//		componentBinder.GetBufferAdress());
+//}
 
 template<FrameType Frames>
 inline void ManagedResourceComponents<Frames>::SwapFrame()
@@ -638,5 +698,6 @@ inline void ManagedResourceComponents<Frames>::SwapFrame()
 	for (auto& texture2DComponent : dynamicTexture2DComponents)
 		texture2DComponent.SwapFrame();
 
-	componentBinder.SwapFrame();
+	//componentBinder.SwapFrame();
+	componentDescriptorHeap.SwapFrame();
 }
