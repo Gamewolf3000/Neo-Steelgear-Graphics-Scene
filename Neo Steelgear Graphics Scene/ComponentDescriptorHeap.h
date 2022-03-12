@@ -6,6 +6,7 @@
 
 #include "FrameBased.h"
 #include "ResourceComponent.h"
+#include "D3DPtr.h"
 
 template<FrameType Frames, typename IdentifierType>
 class ComponentDescriptorHeap : public FrameBased<Frames>
@@ -20,8 +21,8 @@ private:
 
 	std::unordered_map<IdentifierType, ComponentOffset> componentOffsets;
 	ID3D12Device* device;
-	ID3D12DescriptorHeap* cpuHeap = nullptr;
-	ID3D12DescriptorHeap* gpuHeap = nullptr;
+	D3DPtr<ID3D12DescriptorHeap> cpuHeap;
+	D3DPtr<ID3D12DescriptorHeap> gpuHeap;
 	unsigned int descriptorsPerFrame = 0;
 	size_t currentOffset = 0;
 	unsigned int descriptorSize = 0;
@@ -42,7 +43,7 @@ public:
 	ComponentDescriptorHeap& operator=(
 		ComponentDescriptorHeap&& other);
 
-	void Initialize(ID3D12Device* deviceToUse, 
+	void Initialize(ID3D12Device* deviceToUse,
 		unsigned int maxDescriptorsPerFrame);
 
 	void AddComponentDescriptors(const IdentifierType& identifier,
@@ -94,28 +95,29 @@ inline void ComponentDescriptorHeap<Frames, IdentifierType>::Initialize(
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline void 
+inline void
 ComponentDescriptorHeap<Frames, IdentifierType>::AddComponentDescriptors(
 	const IdentifierType& identifier, const ResourceComponent& component)
 {
 	ComponentOffset toStore;
 	UINT nrOfComponents = static_cast<UINT>(component.NrOfDescriptors());
+	size_t heapStartCurrentFrame = descriptorsPerFrame * this->activeFrame;
 
 	if (component.HasDescriptorsOfType(ViewType::CBV))
 	{
-		toStore.cbvOffset = currentOffset;
+		toStore.cbvOffset = currentOffset + heapStartCurrentFrame;
 		StoreDescriptors(component.GetDescriptorHeapCBV(), nrOfComponents);
 	}
 
 	if (component.HasDescriptorsOfType(ViewType::SRV))
 	{
-		toStore.srvOffset = currentOffset;
+		toStore.srvOffset = currentOffset + heapStartCurrentFrame;
 		StoreDescriptors(component.GetDescriptorHeapSRV(), nrOfComponents);
 	}
 
 	if (component.HasDescriptorsOfType(ViewType::UAV))
 	{
-		toStore.uavOffset = currentOffset;
+		toStore.uavOffset = currentOffset + heapStartCurrentFrame;
 		StoreDescriptors(component.GetDescriptorHeapUAV(), nrOfComponents);
 	}
 
@@ -123,7 +125,7 @@ ComponentDescriptorHeap<Frames, IdentifierType>::AddComponentDescriptors(
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline size_t 
+inline size_t
 ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
 	const IdentifierType& identifier, ViewType viewType)
 {
@@ -143,18 +145,18 @@ ComponentDescriptorHeap<Frames, IdentifierType>::GetComponentHeapOffset(
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline void 
+inline void
 ComponentDescriptorHeap<Frames, IdentifierType>::UploadCurrentFrameHeap()
 {
 	auto destination = gpuHeap->GetCPUDescriptorHandleForHeapStart();
+	destination.ptr += this->activeFrame * descriptorsPerFrame * descriptorSize;
 	auto source = cpuHeap->GetCPUDescriptorHandleForHeapStart();
-	source.ptr += this->activeFrame * descriptorsPerFrame * descriptorSize;
 	device->CopyDescriptorsSimple(descriptorsPerFrame, destination, source,
 		D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 }
 
 template<FrameType Frames, typename IdentifierType>
-inline ID3D12DescriptorHeap* 
+inline ID3D12DescriptorHeap*
 ComponentDescriptorHeap<Frames, IdentifierType>::GetShaderVisibleHeap()
 {
 	return gpuHeap;

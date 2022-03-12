@@ -326,7 +326,7 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 			staticBufferComponents.size() - 1, false };
 	}
 
-	descriptorsPerFrame += maxElements * 
+	descriptorsPerFrame += maxElements *
 		static_cast<unsigned int>(descriptorInfo.size());
 	//AddComponentBindings(index, maxElements, cbv, srv, uav);
 
@@ -372,8 +372,8 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 			staticBufferComponents.size() - 1, false };
 	}
 
-	descriptorsPerFrame += maxElements * 
-		static_cast<unsigned int>(descriptorInfo.size());
+	descriptorsPerFrame +=
+		static_cast<unsigned int>(maxElements * descriptorInfo.size());
 	//AddComponentBindings(index, maxElements, cbv.has_value(), srv.has_value(),
 	//	uav.has_value());
 
@@ -679,6 +679,7 @@ inline void ManagedResourceComponents<Frames>::BindComponents(
 			staticTexture2DComponents[i]);
 	}
 
+	componentDescriptorHeap.UploadCurrentFrameHeap();
 	auto heap = componentDescriptorHeap.GetShaderVisibleHeap();
 	commandList->SetDescriptorHeaps(1, &heap);
 	//componentBinder.BindComponents(&uploaders[this->activeFrame], commandList,
