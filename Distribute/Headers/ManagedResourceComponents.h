@@ -99,14 +99,14 @@ public:
 
 	template<typename Element>
 	ComponentIdentifier CreateBufferComponent(bool dynamic,
-		unsigned int maxElements, UpdateType componentUpdateType, bool cbv,
-		bool srv, bool uav);
+		unsigned int maxElements, unsigned int maxBuffers,
+		UpdateType componentUpdateType, bool cbv, bool srv, bool uav);
 
 	template<typename Element>
 	ComponentIdentifier CreateBufferComponent(bool dynamic,
-		unsigned int maxElements, UpdateType componentUpdateType,
-		std::optional<BufferViewDesc> cbv, std::optional<BufferViewDesc> srv,
-		std::optional<BufferViewDesc> uav);
+		unsigned int maxElements, unsigned int maxBuffers,
+		UpdateType componentUpdateType, std::optional<BufferViewDesc> cbv,
+		std::optional<BufferViewDesc> srv, std::optional<BufferViewDesc> uav);
 
 	ComponentIdentifier CreateTexture2DComponent(bool dynamic,
 		size_t totalBytes, unsigned int maxNrOfTextures, std::uint8_t texelSize,
@@ -142,25 +142,7 @@ inline DescriptorAllocationInfo<ViewDescType>
 ManagedResourceComponents<Frames>::CreateCustomDAI(ViewType viewType,
 	size_t nrOfDescriptors, ViewDescType viewDesc)
 {
-	DescriptorInfo descriptorInfo;
-
-	if (viewType == ViewType::RTV)
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		descriptorInfo.descriptorSize = rtvSize;
-	}
-	else if (viewType == ViewType::DSV)
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-		descriptorInfo.descriptorSize = dsvSize;
-	}
-	else
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		descriptorInfo.descriptorSize = shaderViewSize;
-	}
-
-	DescriptorAllocationInfo<ViewDescType> toReturn(viewType, descriptorInfo,
+	DescriptorAllocationInfo<ViewDescType> toReturn(viewType,
 		viewDesc, nrOfDescriptors);
 
 	return toReturn;
@@ -211,25 +193,7 @@ inline DescriptorAllocationInfo<ViewDescType>
 ManagedResourceComponents<Frames>::CreateDefaultDAI(ViewType viewType,
 	size_t nrOfDescriptors)
 {
-	DescriptorInfo descriptorInfo;
-
-	if (viewType == ViewType::RTV)
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
-		descriptorInfo.descriptorSize = rtvSize;
-	}
-	else if (viewType == ViewType::DSV)
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
-		descriptorInfo.descriptorSize = dsvSize;
-	}
-	else
-	{
-		descriptorInfo.type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
-		descriptorInfo.descriptorSize = shaderViewSize;
-	}
-
-	DescriptorAllocationInfo<ViewDescType> toReturn(viewType, descriptorInfo,
+	DescriptorAllocationInfo<ViewDescType> toReturn(viewType,
 		ViewDescType(viewType), nrOfDescriptors);
 
 	return toReturn;
@@ -276,8 +240,8 @@ template<FrameType Frames>
 template<typename Element>
 inline ComponentIdentifier
 ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
-	unsigned int maxElements, UpdateType componentUpdateType, bool cbv,
-	bool srv, bool uav)
+	unsigned int maxElements, unsigned int maxBuffers,
+	UpdateType componentUpdateType, bool cbv, bool srv, bool uav)
 {
 	BufferInfo bufferInfo;
 	bufferInfo.elementSize = sizeof(Element);
@@ -288,7 +252,7 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 
 	std::vector<DescriptorAllocationInfo<BufferViewDesc>> descriptorInfo =
 		CreateDefaultDAIVector<BufferViewDesc>(cbv, srv, uav, false, false,
-			maxElements);
+			maxBuffers);
 
 	ComponentIdentifier toReturn;
 	if (dynamic)
@@ -308,7 +272,7 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 			staticBufferComponents.size() - 1, false };
 	}
 
-	descriptorsPerFrame += maxElements *
+	descriptorsPerFrame += maxBuffers *
 		static_cast<unsigned int>(descriptorInfo.size());
 
 	return toReturn;
@@ -318,9 +282,9 @@ template<FrameType Frames>
 template<typename Element>
 inline ComponentIdentifier
 ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
-	unsigned int maxElements, UpdateType componentUpdateType,
-	std::optional<BufferViewDesc> cbv, std::optional<BufferViewDesc> srv,
-	std::optional<BufferViewDesc> uav)
+	unsigned int maxElements, unsigned int maxBuffers,
+	UpdateType componentUpdateType, std::optional<BufferViewDesc> cbv,
+	std::optional<BufferViewDesc> srv, std::optional<BufferViewDesc> uav)
 {
 	BufferInfo bufferInfo;
 	bufferInfo.elementSize = sizeof(Element);
@@ -331,7 +295,7 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 
 	std::vector<DescriptorAllocationInfo<BufferViewDesc>> descriptorInfo =
 		CreateCustomDAIVector<BufferViewDesc>(cbv, srv, uav, std::nullopt,
-			std::nullopt, maxElements);
+			std::nullopt, maxBuffers);
 
 	ComponentIdentifier toReturn;
 	if (dynamic)
@@ -352,7 +316,7 @@ ManagedResourceComponents<Frames>::CreateBufferComponent(bool dynamic,
 	}
 
 	descriptorsPerFrame +=
-		static_cast<unsigned int>(maxElements * descriptorInfo.size());
+		static_cast<unsigned int>(maxBuffers * descriptorInfo.size());
 
 	return toReturn;
 }

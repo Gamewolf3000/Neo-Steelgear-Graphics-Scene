@@ -32,7 +32,7 @@ D3D12_ROOT_PARAMETER ManagedGraphicsPipelineState::CreateRootDescriptor(
 {
 	D3D12_ROOT_PARAMETER toReturn;
 	toReturn.ShaderVisibility = binding.shaderAssociation;
-	toReturn.ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	toReturn.ParameterType = binding.parameterType;
 	toReturn.Descriptor.ShaderRegister = binding.registerNr;
 	toReturn.Descriptor.RegisterSpace = 0;
 	return toReturn;

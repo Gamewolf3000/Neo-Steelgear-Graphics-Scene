@@ -19,6 +19,7 @@ struct RootBufferBinding
 {
 	D3D12_SHADER_VISIBILITY shaderAssociation;
 	std::uint8_t registerNr = std::uint8_t(-1);
+	D3D12_ROOT_PARAMETER_TYPE parameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 };
 
 struct GraphicsPipelineData
